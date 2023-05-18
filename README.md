@@ -1,154 +1,36 @@
-# seed
+# Orig Repo
+https://github.com/geeksbaek/seed
 
-[![Build Status](https://travis-ci.org/geeksbaek/seed.svg?branch=master)](https://travis-ci.org/geeksbaek/seed)
-[![codecov](https://codecov.io/gh/geeksbaek/seed/branch/master/graph/badge.svg)](https://codecov.io/gh/geeksbaek/seed)
-[![Go Report Card](https://goreportcard.com/badge/github.com/geeksbaek/seed)](https://goreportcard.com/report/github.com/geeksbaek/seed)
-[![GoDoc](https://godoc.org/github.com/geeksbaek/seed?status.svg)](https://godoc.org/github.com/geeksbaek/seed)
+---
+## FIXED
+- pdwRoundKey was not setted (Round key setting error)
+- Function in the process of create round key, `encRoundKeyUpdate1` was misimplemented.
 
-This package is an implements SEED encryption with Go. The original source is [here](https://seed.kisa.or.kr/iwt/ko/bbs/EgovReferenceDetail.do?bbsId=BBSMSTR_000000000002&nttId=34).
+---
 
-## What is SEED
-
-SEED is a block cipher developed by the Korea Internet & Security Agency (KISA). It is used broadly throughout South Korean industry, but seldom found elsewhere. It gained popularity in Korea because 40-bit encryption was not considered strong enough, so the Korea Information Security Agency developed its own standard. However, this decision has historically limited the competition of web browsers in Korea, as no major SSL libraries or web browsers supported the SEED algorithm, requiring users to use an ActiveX control in Internet Explorer for secure web sites.
-
-On April 1, 2015 the Ministry of Science, ICT and Future Planning (MSIP) announced its plan to remove the ActiveX dependency from at least 90 percent of the country's top 100 websites by 2017. Instead, HTML5-based technologies will be employed as they operate on many platforms, including mobile devices. Starting with the private sector, the ministry plans to expand this further to ultimately remove this dependency from public websites as well.
-
-[Read more from Wikipedia](https://en.wikipedia.org/wiki/SEED)
-
-## Disclaimer
-
-Currently, only 128-bit encryption is supported. 256-bit encryption is under preparation.
-
-Would you contribute?
-
-## Example
-
-```go
-package main
-
-import (
-    "crypto/cipher"
-    "crypto/rand"
-    "encoding/base64"
-    "errors"
-    "fmt"
-    "io"
-
-    "github.com/geeksbaek/seed"
-)
-
-func main() {
-    cipherKey := []byte("0123456789012345")
-    msg := "A quick brown fox jumped over the lazy dog."
-
-    encrypted, err := encrypt(cipherKey, msg)
-    if err != nil {
-        panic(err)
-    }
-
-    fmt.Printf("CIPHER KEY: %s\n", cipherKey)
-    fmt.Printf("ENCRYPTED: %s\n", encrypted)
-
-    decrypted, err := decrypt(cipherKey, encrypted)
-    if err != nil {
-        panic(err)
-    }
-
-    fmt.Printf("DECRYPTED: %s\n", decrypted)
-
-    if msg != decrypted {
-        panic("do not match msg and decrypted")
-    }
-
-    // CIPHER KEY: 0123456789012345
-    // ENCRYPTED: 9VzqUQJh1JWmboAw_tfzzbHdaI8_53NHhBTFoNFPiPn4fqe_G44K0xQpYRyqRWAIp9ao-6OnTkJCh08=
-    // DECRYPTED: A quick brown fox jumped over the lazy dog.
-}
-
-func encrypt(key []byte, message string) (encmess string, err error) {
-    plainText := []byte(message)
-
-    block, err := seed.NewCipher(key)
-    if err != nil {
-        return
-    }
-
-    // IV needs to be unique, but doesn't have to be secure.
-    // It's common to put it at the beginning of the ciphertext.
-    cipherText := make([]byte, seed.BlockSize+len(plainText))
-    iv := cipherText[:seed.BlockSize]
-    if _, err = io.ReadFull(rand.Reader, iv); err != nil {
-        return
-    }
-
-    stream := cipher.NewCFBEncrypter(block, iv)
-    stream.XORKeyStream(cipherText[seed.BlockSize:], plainText)
-
-    // returns to base64 encoded string
-    encmess = base64.URLEncoding.EncodeToString(cipherText)
-    return
-}
-
-func decrypt(key []byte, securemess string) (decodedmess string, err error) {
-    cipherText, err := base64.URLEncoding.DecodeString(securemess)
-    if err != nil {
-        return
-    }
-
-    block, err := seed.NewCipher(key)
-    if err != nil {
-        return
-    }
-
-    if len(cipherText) < seed.BlockSize {
-        err = errors.New("Ciphertext block size is too short")
-        return
-    }
-
-    // IV needs to be unique, but doesn't have to be secure.
-    // It's common to put it at the beginning of the ciphertext.
-    iv := cipherText[:seed.BlockSize]
-    cipherText = cipherText[seed.BlockSize:]
-
-    stream := cipher.NewCFBDecrypter(block, iv)
-    // XORKeyStream can work in-place if the two arguments are the same.
-    stream.XORKeyStream(cipherText, cipherText)
-
-    decodedmess = string(cipherText)
-    return
-}
+Matched KISA's test vector
+https://seed.kisa.or.kr/kisa/algorithm/EgovSeedInfo.do - `참조구현값` file, `[5]_SEED+128_Test_Vector_M.pdf`
 ```
+Key: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+Plaintext: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F
 
-## Benchmark
-
-It is a benchmark against the aes algorithm on laptops with i5-8250u.
-
-```text
-goos: windows
-goarch: amd64
-pkg: github.com/geeksbaek/seed
-BenchmarkAESGCMSeal1K-8                  3000000               385 ns/op        2654.00 MB/s
-BenchmarkSEED128GCMSeal1K-8                50000             27950 ns/op          36.64 MB/s
-BenchmarkAESGCMOpen1K-8                  5000000               325 ns/op        3146.80 MB/s
-BenchmarkSEED128GCMOpen1K-8                50000             27960 ns/op          36.62 MB/s
-BenchmarkAESGCMSign8K-8                  1000000              1179 ns/op        6945.05 MB/s
-BenchmarkSEED128GCMSign8K-8                30000             44199 ns/op         185.34 MB/s
-BenchmarkAESGCMSeal8K-8                  1000000              2095 ns/op        3909.31 MB/s
-BenchmarkSEED128GCMSeal8K-8                10000            234199 ns/op          34.98 MB/s
-BenchmarkAESGCMOpen8K-8                  1000000              2272 ns/op        3604.85 MB/s
-BenchmarkSEED128GCMOpen8K-8                 5000            247400 ns/op          33.11 MB/s
-BenchmarkAESCFBEncrypt1K-8                500000              2658 ns/op         383.37 MB/s
-BenchmarkSEED128CFBEncrypt1K-8             50000             24310 ns/op          41.92 MB/s
-BenchmarkAESCFBDecrypt1K-8                500000              2644 ns/op         385.26 MB/s
-BenchmarkSEED128CFBDecrypt1K-8             50000             24579 ns/op          41.46 MB/s
-BenchmarkAESOFB1K-8                      1000000              1795 ns/op         567.69 MB/s
-BenchmarkSEED128OFB1K-8                    50000             26129 ns/op          39.00 MB/s
-BenchmarkAESCTR1K-8                      1000000              1800 ns/op         565.80 MB/s
-BenchmarkSEED128CTR1K-8                    50000             22810 ns/op          44.67 MB/s
-BenchmarkAESCBCEncrypt1K-8                500000              2542 ns/op         402.67 MB/s
-BenchmarkSEED128CBCEncrypt1K-8             50000             26059 ns/op          39.29 MB/s
-BenchmarkAESCBCDecrypt1K-8               1000000              2008 ns/op         509.95 MB/s
-BenchmarkSEED128CBCDecrypt1K-8             50000             24119 ns/op          42.45 MB/s
-PASS
-ok      github.com/geeksbaek/seed    36.862s
+round1  input: &[7C8F8C7E C737A22C] &[00010203] &[04050607] &[08090A0B] &[0C0D0E0F]
+round2  input: &[FF276CDB A7CA684A] &[08090A0B] &[0C0D0E0F] &[8081BC57] &[C4EA8A1F]
+round3  input: &[2F9D01A1 70049E41] &[8081BC57] &[C4EA8A1F] &[117A8B07] &[D7358C24]
+round4  input: &[AE59B3C4 4245E90C] &[117A8B07] &[D7358C24] &[D1738C94] &[7326CAB0]
+round5  input: &[A1D6400F DBC1394E] &[D1738C94] &[7326CAB0] &[577ECE6D] &[1F8433EC]
+round6  input: &[85963508 0C5F1FCB] &[577ECE6D] &[1F8433EC] &[910F62AB] &[DDA096C1]
+round7  input: &[B684BDA7 61A4AEAE] &[910F62AB] &[DDA096C1] &[EA4D39B4] &[B17B1938]
+round8  input: &[D17E0741 FEE90AA1] &[EA4D39B4] &[B17B1938] &[B04E251F] &[97D7442C]
+round9  input: &[76CC05D5 E97A7394] &[B04E251F] &[97D7442C] &[B86D31BF] &[A5988C06]
+round10 input: &[50AC6F92 1B2666E5] &[B86D31BF] &[A5988C06] &[9008EABF] &[38DF7430]
+round11 input: &[65B7904A 8EC3A7B3] &[9008EABF] &[38DF7430] &[33E47DE0] &[54EFF76C]
+round12 input: &[2F7E2E22 A2B121B9] &[33E47DE0] &[54EFF76C] &[6BE9C434] &[BF3F378A]
+round13 input: &[4D0BFDE4 4E888D9B] &[6BE9C434] &[BF3F378A] &[B8DC3842] &[03A02D33]
+round14 input: &[631C8DDC 4378A6C4] &[B8DC3842] &[03A02D33] &[6679FCF7] &[9791DFCB]
+round15 input: &[216AF65F 7878C031] &[6679FCF7] &[9791DFCB] &[1A415792] &[A02B8C54]
+round16 input: &[71891150 98B255B0] &[1A415792] &[A02B8C54] &[19AFF1CC] &[6D346CDB]
+Ciphertext: 5E BA C6 E0 05 4E 16 68 19 AF F1 CC 6D 34 6C DB
+...
+DECRYPTED plaintext: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F
 ```
